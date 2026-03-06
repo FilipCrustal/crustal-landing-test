@@ -207,6 +207,23 @@ main {
   display: block;
 }
 
+
+.terrain-loading,
+.terrain-error {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.95rem;
+  padding: 1rem;
+}
+
+.terrain-loading {
+  color: #5e6d7d;
+}
+
+
 .card-grid {
   display: grid;
   gap: 1.5rem;
