@@ -44,6 +44,16 @@
       </div>
     </section>
 
+    <section class="section" id="landscape-demo">
+      <div class="section-header">
+        <h2>3D landscape preview</h2>
+        <p>Interactive terrain inspired by satellite views of Nordic forests, lakes, and farmland.</p>
+      </div>
+      <div class="terrain-shell">
+        <div id="terrain-canvas" aria-label="Interactive 3D landscape"></div>
+      </div>
+    </section>
+
     <section class="section" id="strategy">
       <div class="section-header">
         <h2>What we do</h2>
@@ -148,5 +158,175 @@
     </div>
     <p class="legal">All information is provided for general purposes and does not constitute investment advice.</p>
   </footer>
+
+  <script type="module">
+    const terrainRoot = document.getElementById('terrain-canvas');
+
+    const showTerrainError = (message) => {
+      if (!terrainRoot) return;
+      terrainRoot.innerHTML = `<p class="terrain-error">${message}</p>`;
+    };
+
+    const initTerrain = async () => {
+      if (!terrainRoot) return;
+
+      let THREE;
+      let OrbitControls;
+      let ImprovedNoise;
+
+      try {
+        THREE = await import('https://esm.sh/three@0.165.0');
+        ({ OrbitControls } = await import('https://esm.sh/three@0.165.0/examples/jsm/controls/OrbitControls.js'));
+        ({ ImprovedNoise } = await import('https://esm.sh/three@0.165.0/examples/jsm/math/ImprovedNoise.js'));
+      } catch (error) {
+        console.error(error);
+        showTerrainError('3D preview failed to load. Please check your connection and refresh.');
+        return;
+      }
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color('#ffffff');
+
+      const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 300);
+      camera.position.set(0, 18, 36);
+
+      let renderer;
+      try {
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+      } catch (error) {
+        console.error(error);
+        showTerrainError('WebGL is not available in this browser/device.');
+        return;
+      }
+
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      terrainRoot.appendChild(renderer.domElement);
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.maxPolarAngle = Math.PI / 2.05;
+      controls.minDistance = 18;
+      controls.maxDistance = 60;
+      controls.target.set(0, 1.8, 0);
+
+      scene.add(new THREE.HemisphereLight('#f7fbff', '#547082', 1.35));
+      const sun = new THREE.DirectionalLight('#ffffff', 1.25);
+      sun.position.set(14, 24, 7);
+      scene.add(sun);
+
+      const noise = new ImprovedNoise();
+      const size = 190;
+      const segments = 230;
+      const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
+      geometry.rotateX(-Math.PI / 2);
+
+      const pos = geometry.attributes.position;
+      const color = new THREE.Color();
+      const colors = new Float32Array(pos.count * 3);
+
+      for (let i = 0; i < pos.count; i += 1) {
+        const x = pos.getX(i);
+        const z = pos.getZ(i);
+
+        const broad = noise.noise(x * 0.016, z * 0.016, 0) * 6.6;
+        const medium = noise.noise(x * 0.04 + 41, z * 0.04 + 17, 0) * 2.1;
+        const detail = noise.noise(x * 0.11 - 9, z * 0.11 + 24, 0) * 0.75;
+
+        const bowl = -Math.hypot(x, z) * 0.016;
+        const lakeBlend = noise.noise(x * 0.028 - 60, z * 0.028 + 36, 0) * 1.8;
+        const y = broad + medium + detail + bowl + lakeBlend;
+
+        pos.setY(i, y);
+
+        const moisture = noise.noise(x * 0.065 + 300, z * 0.065 - 110, 0);
+        const cropPatch = noise.noise(x * 0.13 - 240, z * 0.13 + 80, 0);
+
+        if (y < -1.85) {
+          color.setHSL(0.60, 0.66, 0.2 + (y + 4) * 0.015);
+        } else if (y < -0.35) {
+          color.setHSL(0.55, 0.46, 0.25 + moisture * 0.03);
+        } else if (cropPatch > 0.26 && moisture > -0.18) {
+          color.setHSL(0.3, 0.38, 0.38 + moisture * 0.05);
+        } else {
+          color.setHSL(0.35, 0.34, 0.25 + moisture * 0.045 + y * 0.004);
+        }
+
+        colors[i * 3] = color.r;
+        colors[i * 3 + 1] = color.g;
+        colors[i * 3 + 2] = color.b;
+      }
+
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      geometry.computeVertexNormals();
+
+      const terrain = new THREE.Mesh(
+        geometry,
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0.02 })
+      );
+      scene.add(terrain);
+
+      const roads = new THREE.Group();
+
+      const createRoad = (curvePoints, width = 0.55) => {
+        const curve = new THREE.CatmullRomCurve3(curvePoints.map(([x, y, z]) => new THREE.Vector3(x, y, z)));
+        const roadGeo = new THREE.TubeGeometry(curve, 140, width, 8, false);
+        const road = new THREE.Mesh(
+          roadGeo,
+          new THREE.MeshStandardMaterial({ color: '#bdc2c8', roughness: 0.65, metalness: 0.04 })
+        );
+        roads.add(road);
+      };
+
+      createRoad([
+        [-84, 1.8, 55],
+        [-34, 2.7, 19],
+        [8, 2.9, -9],
+        [58, 1.7, -45],
+        [80, 1.4, -61]
+      ], 0.5);
+
+      createRoad([
+        [13, 2.7, 28],
+        [20, 2.9, 7],
+        [20, 2.4, -10],
+        [18, 1.8, -30]
+      ], 0.22);
+
+      scene.add(roads);
+
+      const resize = () => {
+        const { clientWidth, clientHeight } = terrainRoot;
+        if (!clientWidth || !clientHeight) {
+          return;
+        }
+
+        renderer.setSize(clientWidth, clientHeight, false);
+        camera.aspect = clientWidth / clientHeight;
+        camera.updateProjectionMatrix();
+      };
+
+      resize();
+      window.addEventListener('resize', resize);
+
+      const clock = new THREE.Clock();
+
+      const animate = () => {
+        const t = clock.getElapsedTime();
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.07;
+        controls.update();
+
+        const pulse = 1 + Math.sin(t * 0.25) * 0.03;
+        terrain.scale.y = pulse;
+
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+      };
+
+      animate();
+    };
+
+    initTerrain();
+  </script>
 </body>
 </html>
