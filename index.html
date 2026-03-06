@@ -160,45 +160,20 @@
   </footer>
 
   <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
+    import { OrbitControls } from 'https://unpkg.com/three@0.165.0/examples/jsm/controls/OrbitControls.js';
+    import { ImprovedNoise } from 'https://unpkg.com/three@0.165.0/examples/jsm/math/ImprovedNoise.js';
+
     const terrainRoot = document.getElementById('terrain-canvas');
 
-    const showTerrainError = (message) => {
-      if (!terrainRoot) return;
-      terrainRoot.innerHTML = `<p class="terrain-error">${message}</p>`;
-    };
-
-    const initTerrain = async () => {
-      if (!terrainRoot) return;
-
-      let THREE;
-      let OrbitControls;
-      let ImprovedNoise;
-
-      try {
-        THREE = await import('https://esm.sh/three@0.165.0');
-        ({ OrbitControls } = await import('https://esm.sh/three@0.165.0/examples/jsm/controls/OrbitControls.js'));
-        ({ ImprovedNoise } = await import('https://esm.sh/three@0.165.0/examples/jsm/math/ImprovedNoise.js'));
-      } catch (error) {
-        console.error(error);
-        showTerrainError('3D preview failed to load. Please check your connection and refresh.');
-        return;
-      }
-
+    if (terrainRoot) {
       const scene = new THREE.Scene();
       scene.background = new THREE.Color('#ffffff');
 
       const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 300);
       camera.position.set(0, 18, 36);
 
-      let renderer;
-      try {
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-      } catch (error) {
-        console.error(error);
-        showTerrainError('WebGL is not available in this browser/device.');
-        return;
-      }
-
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       terrainRoot.appendChild(renderer.domElement);
 
@@ -324,9 +299,7 @@
       };
 
       animate();
-    };
-
-    initTerrain();
+    }
   </script>
 </body>
 </html>
